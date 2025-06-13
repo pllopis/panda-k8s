@@ -161,8 +161,8 @@ spec:
           secret:
               secretName: {{ .Values.global.secret }}-panda-auth
         - name: {{ include "server.fullname" . }}-token-cache
-        secret:
-          secretName: {{ .Values.global.secret }}-panda-token-cache
+          secret:
+              secretName: {{ .Values.global.secret }}-panda-token-cache
         - name: {{ include "server.fullname" . }}-sandbox
           projected:
             sources:
