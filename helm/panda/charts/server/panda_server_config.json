@@ -28,7 +28,8 @@
         "setupper_plugins": "wlcg:dataservice.setupper_dummy_plugin:SetupperDummyPlugin",
         "token_authType": "oidc",
         "sandboxHostname": "$PANDA_HOSTNAME",
-        "mq_configFile": "/opt/panda/etc/panda/panda_mbproxy_config.json"
+        "mq_configFile": "/data/panda/etc/panda/panda_mbproxy_config.json",
+        "token_cache_config": "/data/panda/token_cache_config.json"
     },
     "daemon": {
         "enable": "True",
