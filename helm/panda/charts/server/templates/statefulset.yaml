@@ -118,8 +118,6 @@ spec:
                mountPath: /opt/panda/etc/config_json
              - name: {{ include "server.fullname" . }}-auth
                mountPath: /opt/panda/etc/panda/auth
-             - name: {{ include "server.fullname" . }}-token-cache
-               mountPath: /opt/panda/etc/panda
              - name: {{ include "server.fullname" . }}-sandbox
                mountPath: /opt/panda/sandbox
              - name: {{ include "server.fullname" . }}-certs
@@ -160,9 +158,6 @@ spec:
         - name: {{ include "server.fullname" . }}-auth
           secret:
               secretName: {{ .Values.global.secret }}-panda-auth
-        - name: {{ include "server.fullname" . }}-token-cache
-          secret:
-              secretName: {{ .Values.global.secret }}-panda-token-cache
         - name: {{ include "server.fullname" . }}-sandbox
           projected:
             sources:
@@ -170,6 +165,8 @@ spec:
                   name: {{ include "server.fullname" . }}-sandbox
               - configMap:
                   name: {{ .Release.Name }}-external-sandbox
+              - secret:
+                  secretName: {{ .Values.global.secret }}-panda-panda-token-cache
         - name: {{ include "server.fullname" . }}-certs
           secret:
               secretName: {{ .Values.global.secret }}-panda-certs
