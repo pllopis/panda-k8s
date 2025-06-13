@@ -166,7 +166,7 @@ spec:
               - configMap:
                   name: {{ .Release.Name }}-external-sandbox
               - secret:
-                  name: {{ .Values.global.secret }}-panda-panda-token-cache
+                  name: {{ .Values.global.secret }}-panda-token-cache
         - name: {{ include "server.fullname" . }}-certs
           secret:
               secretName: {{ .Values.global.secret }}-panda-certs
