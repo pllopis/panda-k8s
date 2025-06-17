@@ -53,7 +53,7 @@ spec:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   hostPath:
--    path: {{ .Values.persistentvolume.path }}
+    path: {{ .Values.persistentvolume.path }}
 ---
 {{- end }}
 # pv claim
