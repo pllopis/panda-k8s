@@ -1,83 +1,131 @@
-name: Helm Charts
+name: Helm Charts (OCI)
 
 on:
+  push:
+    branches: [ "**" ]
+    paths:
+      - "helm/**"
+      - ".github/workflows/helm-release.yml"
+    tags:
+      - "v*"
   pull_request:
     paths:
-      - 'helm/**'
-      - '.github/workflows/helm-release.yml'
-  push:
-#    branches:
-#      - main
-    paths:
-      - 'helm/**'
-      - '.github/workflows/helm-release.yml'
-  release:
-    types: [published]
-
+      - "helm/**"
+      - ".github/workflows/helm-release.yml"
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish charts (push to GHCR)?"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  lint:
-    name: Lint charts
+  build:
+    name: Lint & package charts
     runs-on: ubuntu-latest
+    outputs:
+      any_chart: ${{ steps.detect.outputs.any_chart }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v4
 
-      - name: Lint all charts
+      - name: Find charts
+        id: detect
+        shell: bash
+        run: |
+          shopt -s nullglob
+          charts=(helm/*)
+          if [[ ${#charts[@]} -eq 0 ]]; then
+            echo "No charts found under helm/"
+            echo "any_chart=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "any_chart=true" >> "$GITHUB_OUTPUT"
+
+      - name: Lint & package all charts
+        if: steps.detect.outputs.any_chart == 'true'
+        shell: bash
         run: |
           set -euo pipefail
+          mkdir -p dist
           shopt -s nullglob
           for chart in helm/*; do
-            if [ -d "$chart" ] && [ -f "$chart/Chart.yaml" ]; then
-              echo "Building dependencies for ${chart}"
-              helm dependency build "$chart"
-              echo "Linting ${chart}"
-              helm lint "$chart"
-              echo "Packaging ${chart}"
-              helm package "$chart" --destination packaged-charts
-            fi
+            [[ -f "$chart/Chart.yaml" ]] || continue
+            echo "==> deps: $chart";   helm dependency build "$chart"
+            echo "==> lint: $chart";   helm lint "$chart"
+            echo "==> pack: $chart";   helm package -u "$chart" --destination dist
           done
+          ls -l dist || true
 
-      - name: Upload packaged charts
-        if: always()
+      - name: Upload packaged charts (artifact)
+        if: steps.detect.outputs.any_chart == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: helm-packages
-          path: packaged-charts
+          path: dist/*.tgz
           if-no-files-found: ignore
 
-  release:
-    name: Release charts
-    needs: lint
-    if: github.event_name == 'release'
+  publish:
+    name: Publish to GHCR (OCI)
+    needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+    # Publish when:
+    #  - manual dispatch with publish=true
+    #  - OR push to main (no tag needed)
+    #  - OR a tagged push (refs/tags/*)
+    if: |
+      needs.build.outputs.any_chart == 'true' && (
+        (github.event_name == 'workflow_dispatch' && inputs.publish == true) ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
+      )
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0
+          name: helm-packages
+          path: dist
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v4
 
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.5.0
+      - name: Login to GHCR
         env:
-          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          charts_dir: helm
-          charts_repo_url: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
-          packages_dir: .cr-release-packages
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_PASSWORD" | helm registry login ghcr.io \
+            --username "$GHCR_USERNAME" --password-stdin
 
+      - name: Push all packages to GHCR
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          owner=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
+          repo=$(echo  "$REPO"  | tr '[:upper:]' '[:lower:]')
+
+          for pkg in dist/*.tgz; do
+            base=$(basename "$pkg" .tgz)
+            chart="${base%-*}"  # bigmon-0.1.1 -> bigmon
+            # choose ONE of these targets:
+
+            # A) per-repo namespace (one package per chart path):
+            # target="oci://ghcr.io/${owner}/${repo}/${chart}"
+
+            # B) single shared 'charts' namespace (uncomment these 2 lines instead):
+            namespace="panda-k8s-charts"
+            target="oci://ghcr.io/${owner}/${namespace}"
+
+            echo "==> Pushing $pkg to $target"
+            helm push "$pkg" "$target"
+          done
