@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - 'helm/**'
+      - '.github/workflows/helm-release.yml'
   push:
 #    branches:
 #      - main
     paths:
       - 'helm/**'
+      - '.github/workflows/helm-release.yml'
   release:
     types: [published]
 
