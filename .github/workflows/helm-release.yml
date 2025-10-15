@@ -44,7 +44,7 @@ jobs:
 
       - name: Upload packaged charts
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: helm-packages
           path: packaged-charts
