@@ -123,7 +123,7 @@ jobs:
             # target="oci://ghcr.io/${owner}/${repo}/${chart}"
 
             # B) single shared 'charts' namespace (uncomment these 2 lines instead):
-            namespace="panda-k8s-charts"
+            namespace="${repo}-charts"
             target="oci://ghcr.io/${owner}/${namespace}"
 
             echo "==> Pushing $pkg to $target"
